@@ -1,0 +1,868 @@
+```python
+import pandas as pd
+import json
+
+file_path = "Mapa de Sala - Presencial v1.xlsx"
+
+# 1. Process 'Teórico e Práticas'
+df_teo = pd.read_excel(file_path, sheet_name='Teórico e Práticas')
+
+# Find matches for 'Calouros'
+calouros_mask = df_teo['Semestre'].astype(str).str.contains('Calouros', case=False, na=False)
+
+for idx, row in df_teo[calouros_mask].iterrows():
+    disc = row['Disciplina']
+    turno = row['Turno']
+    
+    # Find candidates
+    candidates = df_teo[(df_teo['Disciplina'] == disc) & 
+                    (df_teo['Turno'] == turno) & 
+                    (~df_teo['Semestre'].astype(str).str.contains('Calouros', case=False, na=False)) &
+                    (df_teo['Sala'].notna()) & (df_teo['Sala'] != 'Em Definição') & (df_teo['Sala'] != '-') & (df_teo['Sala'].str.strip() != '')]
+    
+    if not candidates.empty:
+        best_match = candidates.iloc[0]
+        df_teo.at[idx, 'Sala'] = best_match['Sala']
+        df_teo.at[idx, 'Dia'] = best_match['Dia']
+        df_teo.at[idx, 'Horário'] = best_match['Horário']
+
+# Clean up NaN for JSON
+df_teo = df_teo.fillna('')
+df_teo['Aba'] = 'Teórico e Práticas'
+# Standardize columns for the app
+df_teo = df_teo.rename(columns={'Curso': 'Curso', 'Disciplina': 'Disciplina', 'Semestre': 'Semestre', 'Turno': 'Turno', 'Sala': 'Sala', 'Dia': 'Dia', 'Horário': 'Horário'})
+
+
+# 2. Process 'Estágios'
+df_est = pd.read_excel(file_path, sheet_name='Estágios')
+df_est = df_est.fillna('')
+df_est['Aba'] = 'Estágios'
+# Mapping: Especialidade -> Curso, Disciplina -> Disciplina, Turno -> Turno, 
+# Dia da Semana se realizado na unidade -> Dia, Sala/lAB/local específico se houver. -> Sala
+df_est = df_est.rename(columns={
+    'Especialidade': 'Curso', 
+    'Dia da Semana se realizado na unidade': 'Dia',
+    'Sala/lAB/local específico se houver.': 'Sala'
+})
+df_est['Semestre'] = ''
+df_est['Horário'] = ''
+
+# 3. Combine
+columns_to_keep = ['Aba', 'Curso', 'Disciplina', 'Semestre', 'Turno', 'Sala', 'Dia', 'Horário']
+df_final = pd.concat([df_teo[columns_to_keep], df_est[columns_to_keep]], ignore_index=True)
+
+# Remove rows where Curso and Disciplina are empty
+df_final = df_final[(df_final['Curso'] != '') | (df_final['Disciplina'] != '')]
+
+# Convert to dict for output
+data_dict = df_final.to_dict(orient='records')
+print(json.dumps(data_dict[:3], ensure_ascii=False, indent=2))
+with open('app_data.json', 'w', encoding='utf-8') as f:
+    json.dump(data_dict, f, ensure_ascii=False)
+print(f"Total records: {len(data_dict)}")
+
+
+```
+
+```text
+[
+  {
+    "Aba": "Teórico e Práticas",
+    "Curso": "Psicologia",
+    "Disciplina": "Saude Mental e Trabalho",
+    "Semestre": 9,
+    "Turno": "N",
+    "Sala": "B - 40",
+    "Dia": "Sex",
+    "Horário": "20:00"
+  },
+  {
+    "Aba": "Teórico e Práticas",
+    "Curso": "Psicologia",
+    "Disciplina": "Psicologia Escolar e Educacional",
+    "Semestre": "6, 9",
+    "Turno": "N",
+    "Sala": "B - 38",
+    "Dia": "Seg",
+    "Horário": "19:00"
+  },
+  {
+    "Aba": "Teórico e Práticas",
+    "Curso": "Medicina Veterinaria",
+    "Disciplina": "Protozoologia e Ectoparasitologia Veterinaria",
+    "Semestre": 2,
+    "Turno": "N",
+    "Sala": "B - 35",
+    "Dia": "Qua",
+    "Horário": "19:00"
+  }
+]
+
+
+```
+
+```python
+import pandas as pd
+import json
+
+file_path = "Mapa de Sala - Presencial v1.xlsx"
+
+# 1. Process 'Teórico e Práticas'
+df_teo = pd.read_excel(file_path, sheet_name='Teórico e Práticas')
+calouros_mask = df_teo['Semestre'].astype(str).str.contains('Calouros', case=False, na=False)
+
+for idx, row in df_teo[calouros_mask].iterrows():
+    disc = row['Disciplina']
+    turno = row['Turno']
+    candidates = df_teo[(df_teo['Disciplina'] == disc) & 
+                    (df_teo['Turno'] == turno) & 
+                    (~df_teo['Semestre'].astype(str).str.contains('Calouros', case=False, na=False)) &
+                    (df_teo['Sala'].notna()) & (df_teo['Sala'] != 'Em Definição') & (df_teo['Sala'] != '-') & (df_teo['Sala'].str.strip() != '')]
+    if not candidates.empty:
+        best_match = candidates.iloc[0]
+        df_teo.at[idx, 'Sala'] = best_match['Sala']
+        df_teo.at[idx, 'Dia'] = best_match['Dia']
+        df_teo.at[idx, 'Horário'] = best_match['Horário']
+
+df_teo = df_teo.fillna('')
+df_teo['Aba'] = 'Teórico e Práticas'
+
+# 2. Process 'Estágios'
+df_est = pd.read_excel(file_path, sheet_name='Estágios')
+df_est = df_est.fillna('')
+df_est['Aba'] = 'Estágios'
+df_est = df_est.rename(columns={
+    'Especialidade': 'Curso', 
+    'Dia da Semana se realizado na unidade': 'Dia',
+    'Sala/lAB/local específico se houver.': 'Sala'
+})
+df_est['Semestre'] = ''
+df_est['Horário'] = ''
+
+# 3. Combine
+columns_to_keep = ['Aba', 'Curso', 'Disciplina', 'Semestre', 'Turno', 'Sala', 'Dia', 'Horário']
+df_final = pd.concat([df_teo[columns_to_keep], df_est[columns_to_keep]], ignore_index=True)
+df_final = df_final[(df_final['Curso'] != '') | (df_final['Disciplina'] != '')]
+
+# Convert EVERYTHING to string to avoid JSON serialization errors with datetime.time or pandas types
+df_final = df_final.astype(str)
+
+data_dict = df_final.to_dict(orient='records')
+with open('app_data.json', 'w', encoding='utf-8') as f:
+    json.dump(data_dict, f, ensure_ascii=False, indent=2)
+
+print(json.dumps(data_dict[:2], ensure_ascii=False, indent=2))
+print(f"Total records: {len(data_dict)}")
+
+
+```
+
+```text
+[
+  {
+    "Aba": "Teórico e Práticas",
+    "Curso": "Psicologia",
+    "Disciplina": "Saude Mental e Trabalho",
+    "Semestre": "9",
+    "Turno": "N",
+    "Sala": "B - 40",
+    "Dia": "Sex",
+    "Horário": "20:00"
+  },
+  {
+    "Aba": "Teórico e Práticas",
+    "Curso": "Psicologia",
+    "Disciplina": "Psicologia Escolar e Educacional",
+    "Semestre": "6, 9",
+    "Turno": "N",
+    "Sala": "B - 38",
+    "Dia": "Seg",
+    "Horário": "19:00"
+  }
+]
+Total records: 356
+
+
+```
+
+```python
+with open('app_data.json', 'r', encoding='utf-8') as f:
+    content = f.read()
+print(content[:500])
+
+
+```
+
+```text
+[
+  {
+    "Aba": "Teórico e Práticas",
+    "Curso": "Psicologia",
+    "Disciplina": "Saude Mental e Trabalho",
+    "Semestre": "9",
+    "Turno": "N",
+    "Sala": "B - 40",
+    "Dia": "Sex",
+    "Horário": "20:00"
+  },
+  {
+    "Aba": "Teórico e Práticas",
+    "Curso": "Psicologia",
+    "Disciplina": "Psicologia Escolar e Educacional",
+    "Semestre": "6, 9",
+    "Turno": "N",
+    "Sala": "B - 38",
+    "Dia": "Seg",
+    "Horário": "19:00"
+  },
+  {
+    "Aba": "Teórico e Práticas",
+    "Curso": "Med
+
+
+```
+
+```python
+with open('app_data.json', 'r', encoding='utf-8') as f:
+    json_data = f.read()
+
+# Let's write the whole updated HTML file to disk and then print a success message.
+# I'll construct the HTML string directly in Python and output it.
+html_template = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Salas - Anhanguera Valinhos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {{
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }}
+        ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+        ::-webkit-scrollbar-track {{ background: #f1f1f1; }}
+        ::-webkit-scrollbar-thumb {{ background: #c1c1c1; border-radius: 4px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: #a8a8a8; }}
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col items-center py-8 px-4">
+
+    <div class="w-full max-w-6xl bg-white rounded-xl shadow-lg overflow-hidden flex flex-col h-[85vh]">
+        
+        <div class="bg-orange-500 text-white p-6 rounded-t-xl shrink-0">
+            <h1 class="text-2xl font-bold text-center">Anhanguera Valinhos</h1>
+            <p class="text-center text-orange-100 mt-1">Mapa de Salas - Presencial</p>
+        </div>
+
+        <div class="p-6 border-b border-gray-200 bg-gray-50 shrink-0">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div class="relative">
+                    <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-1">Buscar (Aba, Curso, Disciplina ou Sala):</label>
+                    <input type="text" id="searchInput" placeholder="Ex: Engenharia, Sala B-40..." 
+                           class="w-full pl-4 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-shadow">
+                </div>
+
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label for="dayFilter" class="block text-sm font-medium text-gray-700 mb-1">Dia da Semana:</label>
+                        <select id="dayFilter" class="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white">
+                            <option value="">Todos os dias</option>
+                            <option value="Seg">Segunda-feira (Seg)</option>
+                            <option value="Ter">Terça-feira (Ter)</option>
+                            <option value="Qua">Quarta-feira (Qua)</option>
+                            <option value="Qui">Quinta-feira (Qui)</option>
+                            <option value="Sex">Sexta-feira (Sex)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 text-sm text-gray-500 flex justify-between items-center">
+                <span id="resultCount">Carregando salas...</span>
+                <button id="clearFiltersBtn" class="text-orange-600 hover:text-orange-800 font-medium hidden">Limpar Filtros</button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-auto bg-white p-0 relative">
+            <table class="w-full text-left border-collapse min-w-max">
+                <thead class="sticky top-0 bg-gray-100 z-10 shadow-sm">
+                    <tr>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Aba</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Curso</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Disciplina</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Semestre</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Turno</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Sala</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Dia</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Horário</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-100">
+                </tbody>
+            </table>
+            
+            <div id="emptyState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-gray-500 bg-white">
+                <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p class="text-lg font-medium">Nenhuma sala encontrada.</p>
+                <p class="text-sm">Tente ajustar os filtros ou os termos de busca.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const scheduleData = {json_data};
+
+        const searchInput = document.getElementById('searchInput');
+        const dayFilter = document.getElementById('dayFilter');
+        const tableBody = document.getElementById('tableBody');
+        const resultCount = document.getElementById('resultCount');
+        const emptyState = document.getElementById('emptyState');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+        function renderRoom(room) {{
+            if (!room || room === 'nan' || room === 'Em Definição' || room === '-') return `<span class="text-gray-400 italic">A definir</span>`;
+            
+            const isLab = room.toLowerCase().includes('lab') || room.toLowerCase().includes('unidade') || room.toLowerCase().includes('infor');
+            const bgClass = isLab ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-orange-50 text-orange-800 border-orange-200';
+            return `
+                <div class="inline-flex items-center px-2.5 py-1 rounded-md border ${{bgClass}}">
+                    <span class="font-bold">${{room}}</span>
+                </div>
+            `;
+        }}
+
+        function renderTable(data) {{
+            tableBody.innerHTML = '';
+            
+            if (data.length === 0) {{
+                emptyState.classList.remove('hidden');
+            }} else {{
+                emptyState.classList.add('hidden');
+                
+                data.forEach(item => {{
+                    const row = document.createElement('tr');
+                    row.className = "hover:bg-gray-50 transition-colors group";
+                    
+                    row.innerHTML = `
+                        <td class="py-3 px-4 border-b border-gray-100 font-medium text-xs text-gray-500 whitespace-nowrap">
+                            ${{item.Aba}}
+                        </td>
+                        <td class="py-3 px-4 border-b border-gray-100 font-medium text-gray-900 text-sm">
+                            ${{item.Curso}}
+                        </td>
+                        <td class="py-3 px-4 border-b border-gray-100 text-sm text-gray-700">
+                            ${{item.Disciplina}}
+                        </td>
+                        <td class="py-3 px-4 border-b border-gray-100 text-sm text-gray-600">
+                            ${{item.Semestre !== 'nan' ? item.Semestre : '-'}}
+                        </td>
+                        <td class="py-3 px-4 border-b border-gray-100 text-sm font-bold text-gray-600">
+                            ${{item.Turno !== 'nan' ? item.Turno : '-'}}
+                        </td>
+                        <td class="py-3 px-4 border-b border-gray-100 whitespace-nowrap">
+                            ${{renderRoom(item.Sala)}}
+                        </td>
+                        <td class="py-3 px-4 border-b border-gray-100">
+                            <span class="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded capitalize">
+                                ${{item.Dia !== 'nan' ? item.Dia : '-'}}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 border-b border-gray-100 text-sm text-gray-600 whitespace-nowrap">
+                            ${{item.Horário !== 'nan' ? item.Horário : '-'}}
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                }});
+            }}
+
+            resultCount.textContent = `${{data.length}} sala(s) encontrada(s)`;
+            
+            const hasFilters = searchInput.value || dayFilter.value;
+            if (hasFilters) {{
+                clearFiltersBtn.classList.remove('hidden');
+            }} else {{
+                clearFiltersBtn.classList.add('hidden');
+            }}
+        }}
+
+        function filterData() {{
+            const searchTerm = searchInput.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const selectedDay = dayFilter.value.toLowerCase();
+
+            const filteredData = scheduleData.filter(item => {{
+                const cursoNormal = (item.Curso || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const discNormal = (item.Disciplina || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const salaNormal = (item.Sala || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const abaNormal = (item.Aba || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                
+                const matchesSearch = searchTerm === '' || 
+                                      cursoNormal.includes(searchTerm) || 
+                                      discNormal.includes(searchTerm) || 
+                                      salaNormal.includes(searchTerm) ||
+                                      abaNormal.includes(searchTerm) ||
+                                      `sala ${{salaNormal}}`.includes(searchTerm);
+                                      
+                const itemDay = (item.Dia || "").toLowerCase();
+                const matchesDay = selectedDay === '' || itemDay.includes(selectedDay);
+
+                return matchesSearch && matchesDay;
+            }});
+
+            renderTable(filteredData);
+        }}
+
+        searchInput.addEventListener('input', filterData);
+        dayFilter.addEventListener('change', filterData);
+
+        clearFiltersBtn.addEventListener('click', () => {{
+            searchInput.value = '';
+            dayFilter.value = '';
+            filterData();
+        }});
+
+        function setDefaultDay() {{
+            const today = new Date().getDay();
+            const daysMap = {{
+                1: "seg",
+                2: "ter",
+                3: "qua",
+                4: "qui",
+                5: "sex" 
+            }};
+            
+            if (daysMap[today] && document.querySelector(`#dayFilter option[value="${{daysMap[today].charAt(0).toUpperCase() + daysMap[today].slice(1)}}"]`)) {{
+                dayFilter.value = daysMap[today].charAt(0).toUpperCase() + daysMap[today].slice(1);
+            }}
+        }}
+
+        setDefaultDay();
+        filterData();
+
+    </script>
+</body>
+</html>"""
+
+with open("index.html", "w", encoding='utf-8') as f:
+    f.write(html_template)
+print("HTML generated successfully!")
+
+
+```
+
+```text
+HTML generated successfully!
+
+
+```
+
+```python
+with open("index.html", "r", encoding='utf-8') as f:
+    print(f.read()[:200]) # just checking
+
+
+```
+
+```text
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Salas - Anhanguera Valinhos</tit
+
+
+```
+
+```python
+with open("index.html", "r", encoding='utf-8') as f:
+    content = f.read()
+print(len(content))
+
+
+```
+
+```text
+95963
+
+
+```
+
+```python
+# let's try to minify the json
+import json
+with open('app_data.json', 'r', encoding='utf-8') as f:
+    data = json.load(f)
+
+# Change keys to shorter names: a=Aba, c=Curso, d=Disciplina, s=Semestre, t=Turno, l=Sala, y=Dia, h=Horário
+short_data = []
+for row in data:
+    short_data.append({
+        'a': row['Aba'],
+        'c': row['Curso'],
+        'd': row['Disciplina'],
+        's': row['Semestre'],
+        't': row['Turno'],
+        'l': row['Sala'],
+        'y': row['Dia'],
+        'h': row['Horário']
+    })
+
+minified_json = json.dumps(short_data, ensure_ascii=False, separators=(',', ':'))
+print(len(minified_json))
+
+
+```
+
+```text
+52272
+
+
+```
+
+```python
+html_template2 = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Salas - Anhanguera Valinhos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {{ font-family: 'Inter', sans-serif; background-color: #f3f4f6; }}
+        ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+        ::-webkit-scrollbar-track {{ background: #f1f1f1; }}
+        ::-webkit-scrollbar-thumb {{ background: #c1c1c1; border-radius: 4px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: #a8a8a8; }}
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col items-center py-8 px-4">
+    <div class="w-full max-w-7xl bg-white rounded-xl shadow-lg overflow-hidden flex flex-col h-[85vh]">
+        <div class="bg-orange-500 text-white p-6 rounded-t-xl shrink-0">
+            <h1 class="text-2xl font-bold text-center">Anhanguera Valinhos</h1>
+            <p class="text-center text-orange-100 mt-1">Mapa de Salas - Presencial</p>
+        </div>
+        <div class="p-6 border-b border-gray-200 bg-gray-50 shrink-0">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="relative">
+                    <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-1">Buscar (Aba, Curso, Disciplina ou Sala):</label>
+                    <input type="text" id="searchInput" placeholder="Ex: Engenharia, Sala B-40..." 
+                           class="w-full pl-4 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-shadow">
+                </div>
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label for="dayFilter" class="block text-sm font-medium text-gray-700 mb-1">Dia da Semana:</label>
+                        <select id="dayFilter" class="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white">
+                            <option value="">Todos os dias</option>
+                            <option value="Seg">Segunda-feira (Seg)</option>
+                            <option value="Ter">Terça-feira (Ter)</option>
+                            <option value="Qua">Quarta-feira (Qua)</option>
+                            <option value="Qui">Quinta-feira (Qui)</option>
+                            <option value="Sex">Sexta-feira (Sex)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 text-sm text-gray-500 flex justify-between items-center">
+                <span id="resultCount">Carregando salas...</span>
+                <button id="clearFiltersBtn" class="text-orange-600 hover:text-orange-800 font-medium hidden">Limpar Filtros</button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-auto bg-white p-0 relative">
+            <table class="w-full text-left border-collapse min-w-max">
+                <thead class="sticky top-0 bg-gray-100 z-10 shadow-sm">
+                    <tr>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Aba</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Curso</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200 w-1/4">Disciplina</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Semestre</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Turno</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Sala</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Dia</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Horário</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-100"></tbody>
+            </table>
+            <div id="emptyState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-gray-500 bg-white">
+                <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p class="text-lg font-medium">Nenhuma sala encontrada.</p>
+                <p class="text-sm">Tente ajustar os filtros ou os termos de busca.</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        const scheduleData = {minified_json};
+
+        const searchInput = document.getElementById('searchInput');
+        const dayFilter = document.getElementById('dayFilter');
+        const tableBody = document.getElementById('tableBody');
+        const resultCount = document.getElementById('resultCount');
+        const emptyState = document.getElementById('emptyState');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+        function renderRoom(room) {{
+            if (!room || room === 'nan' || room === 'Em Definição' || room === '-') return `<span class="text-gray-400 italic">A definir</span>`;
+            const isLab = room.toLowerCase().includes('lab') || room.toLowerCase().includes('unidade') || room.toLowerCase().includes('infor');
+            const bgClass = isLab ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-orange-50 text-orange-800 border-orange-200';
+            return `<div class="inline-flex items-center px-2.5 py-1 rounded-md border ${{bgClass}}"><span class="font-bold">${{room}}</span></div>`;
+        }}
+
+        function renderTable(data) {{
+            tableBody.innerHTML = '';
+            if (data.length === 0) {{
+                emptyState.classList.remove('hidden');
+            }} else {{
+                emptyState.classList.add('hidden');
+                data.forEach(item => {{
+                    const row = document.createElement('tr');
+                    row.className = "hover:bg-gray-50 transition-colors group";
+                    row.innerHTML = `
+                        <td class="py-2 px-4 border-b border-gray-100 font-medium text-xs text-gray-500 whitespace-nowrap">${{item.a}}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 font-medium text-gray-900 text-sm">${{item.c}}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 text-sm text-gray-700">${{item.d}}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 text-sm text-gray-600">${{item.s !== 'nan' ? item.s : '-'}}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 text-sm font-bold text-gray-600">${{item.t !== 'nan' ? item.t : '-'}}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 whitespace-nowrap">${{renderRoom(item.l)}}</td>
+                        <td class="py-2 px-4 border-b border-gray-100"><span class="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded capitalize">${{item.y !== 'nan' ? item.y : '-'}}</span></td>
+                        <td class="py-2 px-4 border-b border-gray-100 text-sm text-gray-600 whitespace-nowrap">${{item.h !== 'nan' ? item.h : '-'}}</td>
+                    `;
+                    tableBody.appendChild(row);
+                }});
+            }}
+            resultCount.textContent = `${{data.length}} sala(s) encontrada(s)`;
+            if (searchInput.value || dayFilter.value) clearFiltersBtn.classList.remove('hidden');
+            else clearFiltersBtn.classList.add('hidden');
+        }}
+
+        function filterData() {{
+            const searchTerm = searchInput.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const selectedDay = dayFilter.value.toLowerCase();
+            const filteredData = scheduleData.filter(item => {{
+                const cursoNormal = (item.c || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const discNormal = (item.d || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const salaNormal = (item.l || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const abaNormal = (item.a || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                
+                const matchesSearch = searchTerm === '' || cursoNormal.includes(searchTerm) || discNormal.includes(searchTerm) || salaNormal.includes(searchTerm) || abaNormal.includes(searchTerm) || `sala ${{salaNormal}}`.includes(searchTerm);
+                const itemDay = (item.y || "").toLowerCase();
+                const matchesDay = selectedDay === '' || itemDay.includes(selectedDay);
+                return matchesSearch && matchesDay;
+            }});
+            renderTable(filteredData);
+        }}
+
+        searchInput.addEventListener('input', filterData);
+        dayFilter.addEventListener('change', filterData);
+        clearFiltersBtn.addEventListener('click', () => {{ searchInput.value = ''; dayFilter.value = ''; filterData(); }});
+
+        function setDefaultDay() {{
+            const today = new Date().getDay();
+            const daysMap = {{ 1: "seg", 2: "ter", 3: "qua", 4: "qui", 5: "sex" }};
+            if (daysMap[today] && document.querySelector(`#dayFilter option[value="${{daysMap[today].charAt(0).toUpperCase() + daysMap[today].slice(1)}}"]`)) {{
+                dayFilter.value = daysMap[today].charAt(0).toUpperCase() + daysMap[today].slice(1);
+            }}
+        }}
+
+        setDefaultDay(); filterData();
+    </script>
+</body>
+</html>"""
+with open("index_min.html", "w", encoding='utf-8') as f:
+    f.write(html_template2)
+print(len(html_template2))
+
+
+```
+
+```text
+62260
+
+
+```
+
+```python
+with open('index_min.html', 'r', encoding='utf-8') as f:
+    print(f.read()[:100])
+
+
+```
+
+```text
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" cont
+
+
+```
+
+Pronto! Mágica feita. Analisei a sua planilha e reestruturei o código do seu aplicativo para incorporar perfeitamente as novas abas, as novas colunas, e claro, a inteligência que você pediu para os calouros.
+
+Aqui está o resumo de tudo que modifiquei no seu código:
+
+* **Lógica de Calouros Aplicada:** Criei um script que varreu a planilha e, para cada linha com `Semestre` marcado como "Calouros 1º Semestre", o código procurou a mesma `Disciplina` e o mesmo `Turno` nas outras turmas. Quando encontrou, ele copiou os dados de `Sala`, `Dia` e `Horário` automaticamente.
+* **Integração de Múltiplas Abas:** Adicionei os dados de ambas as abas ("Teórico e Práticas" e "Estágios"). Para a aba de Estágios, mapeei as colunas para que conversem com o formato da tabela principal (ex: "Especialidade" virou "Curso").
+* **Novas Colunas na Interface:** Ajustei a tabela HTML para agora exibir 8 colunas padronizadas: **Aba**, **Curso**, **Disciplina**, **Semestre**, **Turno**, **Sala**, **Dia** e **Horário**.
+* **Filtros Mais Inteligentes:** A barra de busca agora pesquisa por Aba, Curso, Disciplina ou Sala simultaneamente.
+* **Ajuste de Dias da Semana:** O filtro de dias agora está parametrizado exatamente como a planilha (Seg, Ter, Qua, Qui, Sex).
+* **Base de Dados Real:** Substituí o JSON manual pela extração real completa com as mais de 350 turmas geradas a partir do seu arquivo.
+
+Abaixo está o código HTML completo. Como o banco de dados agora está embutido nele, o arquivo ficou maior, mas está totalmente pronto para você copiar, colar e rodar!
+
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Salas - Anhanguera Valinhos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col items-center py-8 px-4">
+    <div class="w-full max-w-7xl bg-white rounded-xl shadow-lg overflow-hidden flex flex-col h-[85vh]">
+        <div class="bg-orange-500 text-white p-6 rounded-t-xl shrink-0">
+            <h1 class="text-2xl font-bold text-center">Anhanguera Valinhos</h1>
+            <p class="text-center text-orange-100 mt-1">Mapa de Salas - Presencial</p>
+        </div>
+        <div class="p-6 border-b border-gray-200 bg-gray-50 shrink-0">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="relative">
+                    <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-1">Buscar (Aba, Curso, Disciplina ou Sala):</label>
+                    <input type="text" id="searchInput" placeholder="Ex: Engenharia, Sala B-40..." 
+                           class="w-full pl-4 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-shadow">
+                </div>
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label for="dayFilter" class="block text-sm font-medium text-gray-700 mb-1">Dia da Semana:</label>
+                        <select id="dayFilter" class="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white">
+                            <option value="">Todos os dias</option>
+                            <option value="Seg">Segunda-feira (Seg)</option>
+                            <option value="Ter">Terça-feira (Ter)</option>
+                            <option value="Qua">Quarta-feira (Qua)</option>
+                            <option value="Qui">Quinta-feira (Qui)</option>
+                            <option value="Sex">Sexta-feira (Sex)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 text-sm text-gray-500 flex justify-between items-center">
+                <span id="resultCount">Carregando salas...</span>
+                <button id="clearFiltersBtn" class="text-orange-600 hover:text-orange-800 font-medium hidden">Limpar Filtros</button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-auto bg-white p-0 relative">
+            <table class="w-full text-left border-collapse min-w-max">
+                <thead class="sticky top-0 bg-gray-100 z-10 shadow-sm">
+                    <tr>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Aba</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Curso</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200 w-1/4">Disciplina</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Semestre</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Turno</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Sala</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Dia</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 border-b border-gray-200">Horário</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-100"></tbody>
+            </table>
+            <div id="emptyState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-gray-500 bg-white">
+                <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p class="text-lg font-medium">Nenhuma sala encontrada.</p>
+                <p class="text-sm">Tente ajustar os filtros ou os termos de busca.</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Dados reduzidos para ocupar menos espaço. Chaves: a=Aba, c=Curso, d=Disciplina, s=Semestre, t=Turno, l=Sala, y=Dia, h=Horário
+        const scheduleData = [{"a":"Teórico e Práticas","c":"Psicologia","d":"Saude Mental e Trabalho","s":"9","t":"N","l":"B - 40","y":"Sex","h":"20:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicologia Escolar e Educacional","s":"6, 9","t":"N","l":"B - 38","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinaria","d":"Protozoologia e Ectoparasitologia Veterinaria","s":"2","t":"N","l":"B - 35","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Farmácia/Biomedicina/Fisioterapia","d":"Genetica e Biologia Molecular","s":"2, 3","t":"N","l":"B - 41","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"CST em Estética e Cosmética - N","d":"Eletroterapia Avançada","s":"4","t":"N","l":"Lab. Praticas Esteticas","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Nutrição/Fisioterapia/Ed Física/Estética","d":"Metabolismo e Nutrição (Nutricao Aplicada a Enfermagem)","s":"3, 4","t":"N","l":"B - 51","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Fisioterapia/Nutrição/Ed Física/Estética","d":"Psicologia Fenomenologico - Existencial","s":"3","t":"N","l":"B - 21","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Educação Física","d":"Aprendizagem Motora e Psicomotricidade","s":"2, 4","t":"N","l":"B - 26","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Fisiologia Veterinaria I","s":"2.4","t":"N","l":"B - 37","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Fisioterapia","d":"Farmacologia Aplicada","s":"2, 3, 4","t":"N","l":"B - 22","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Nutrição","d":"Fisiologia  (Aplicada a Nutricao)","s":"2, 3","t":"N","l":"B - 24","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Exames Complementares em Medicina Veterinaria","s":"3, 4, 5","t":"N","l":"B - 24","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Nutricao de Cães e Gatos","s":"6, 7","t":"N","l":"B - 27","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Diagnostico por Imagem na Medicina Veterinaria","s":"6","t":"N","l":"B - 22","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Semiologia Veterinaria","s":"5, 6","t":"N","l":"B - 34","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Semiologia Veterinaria","s":"nan","t":"N","l":"Em Definição","y":"Qua","h":"20:00"},{"a":"Teórico e Práticas","c":"Fisioterapia","d":"Trabalho de Conclusao de Curso em Fisioterapia II","s":"7, 8","t":"N","l":"B - 38","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Teoria Psicanalitica","s":"10","t":"N","l":"B - 49","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Terapia Cognitivo Comportamental","s":"8, 10","t":"N","l":"B - 49","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Logística/Administração","d":"Gestao de Pessoas","s":"2","t":"N","l":"B - 22","y":"Ter","h":"20:00"},{"a":"Teórico e Práticas","c":"Logística/Administração","d":"Modelos de Gestao","s":"2, 3, 4","t":"N","l":"B - 40","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Logística/Administração","d":"Legislacao Empresarial Aplicada","s":"2","t":"N","l":"E - 75","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Logística","d":"Logistica e Gestao da Qualidade","s":"3, 4","t":"N","l":"B - 42","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Logística","d":"Desenvolvimento de Pessoas","s":"3, 4","t":"N","l":"B - 39","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Logística/Administração","d":"Gerenciamento da Cadeia de Suprimentos","s":"3, 4, 5","t":"N","l":"B - 52","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Logística/Administração","d":"Gestao da Producao","s":"3, 4","t":"N","l":"E - 76","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Administração","d":"Pesquisa e Inteligencia de Marketing","s":"6, 7","t":"N","l":"B - 21","y":"Qua","h":"20:00"},{"a":"Teórico e Práticas","c":"Administração","d":"Teorias da Administracao","s":"2","t":"N","l":"B - 49","y":"Seg","h":"20:00"},{"a":"Teórico e Práticas","c":"Administração","d":"Analise de Investimentos e Fontes de Financiamento","s":"6","t":"N","l":"B - 27","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Administração","d":"Capital de Giro e Analise Financeira","s":"5, 6","t":"N","l":"B - 21","y":"Seg","h":"20:00"},{"a":"Teórico e Práticas","c":"Administração","d":"Desenvolvimento de Pessoas","s":"5, 6","t":"N","l":"B - 49","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Administração","d":"Analise de Custos","s":"3, 4","t":"N","l":"B - 29","y":"Ter","h":"20:00"},{"a":"Teórico e Práticas","c":"nan","d":"Analise de Custos","s":"nan","t":"N","l":"Em Definição","y":"Qui","h":"20:00"},{"a":"Teórico e Práticas","c":"Administração","d":"Economia para Negocios","s":"3","t":"N","l":"B - 20","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Civil - Familia","s":"7, 8","t":"N","l":"B - 30","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Cibernetico","s":"10","t":"N","l":"B - 27","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Internacional","s":"8, 10","t":"N","l":"B - 46","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Civil - Sucessoes","s":"10","t":"N","l":"B - 36","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Penal - dos Crimes em Especie","s":"6","t":"N","l":"B - 38","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Processual Penal -  Acao Penal e Procedimentos","s":"7","t":"N","l":"B - 28","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Constitucional","s":"2, 3","t":"N","l":"B - 37","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Teoria Geral do Processo","s":"2","t":"N","l":"B - 24","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Fundamentos Historicos e Introducao ao Estudo do Direito","s":"2","t":"N","l":"B - 46","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Processual Civil - Execucao e Cumprimento de Sentenca","s":"4, 5, 6","t":"N","l":"B - 20","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Tributario - Direito Constitucional Tributario","s":"nan","t":"N","l":"Em Definição","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Empresarial e Societario","s":"5, 6","t":"N","l":"B - 26","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Tributario - Direito Constitucional Tributario","s":"3, 4, 5","t":"N","l":"B - 42","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Civil - Contratos","s":"3, 4","t":"N","l":"B - 27","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Civil - Sucessoes","s":"nan","t":"N","l":"Em Definição","y":"Qui","h":"19:00:00"},{"a":"Teórico e Práticas","c":"nan","d":"Direito Internacional","s":"nan","t":"N","l":"-","y":"Ter","h":"19:00:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Processual do Trabalho","s":"7","t":"M","l":"B - 47","y":"Em Definição","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Ambiental","s":"10","t":"M","l":"B - 29","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Internacional","s":"10","t":"M","l":"B - 42","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Processual Civil - Recursos e Tutelas de Causas Repetitivas","s":"8, 9","t":"M","l":"B - 39","y":"Em Definição","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Civil - Familia","s":"8","t":"M","l":"B - 21","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Tributario - Direito Constitucional Tributario","s":"3, 4, 6","t":"M","l":"B - 36","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Coletivo do Trabalho e Tutelas Coletivas","s":"4, 5, 6","t":"M","l":"B - 37","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Processual Penal -  Acao Penal e Procedimentos","s":"4, 6, 7","t":"M","l":"E - 76","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Modelo Multiportas e Meios Integradores de Resolucao de Conflitos","s":"2, 3, 5","t":"M","l":"E - 76","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Penal - Teoria das Penas e Execucao Penal","s":"3, 5","t":"M","l":"B - 52","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Tributario - Tributos em Especie e Processo Tributario","s":"8","t":"M","l":"B - 22","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Tributario - Direito Constitucional Tributario","s":"nan","t":"M","l":"Em Definição","y":"Qui","h":"08:00:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Ambiental","s":"nan","t":"M","l":"Em Definição","y":"Qui","h":"08:00:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Direito Civil - Parte Geral","s":"2","t":"M","l":"B - 35","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito","d":"Teoria Geral do Processo","s":"2","t":"M","l":"B - 32","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"TADS","d":"Analise e Modelagem de Sistemas","s":"3, 4","t":"N","l":"Lab. Informática 3","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"TADS","d":"Engenharia de Software","s":"3, 4","t":"N","l":"Lab. Informática 3","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"TADS","d":"Programação Orientada a Objetos","s":"3","t":"N","l":"Lab. Informática 3","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"TADS","d":"Linguagem de Programacao","s":"2, 3","t":"N","l":"B - 42","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"TADS","d":"Logica e Matematica Computacional","s":"2","t":"N","l":"B - 31","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"TADS","d":"Algoritmos e Programacao Estruturada","s":"2","t":"N","l":"B - 51","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"TADS","d":"Programação Web","s":"4","t":"N","l":"Lab. Informática 2","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Civil","d":"Mecanica dos Solos e Fundações","s":"7, 8","t":"N","l":"B - 29","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Resistencia dos Materiais","s":"nan","t":"N","l":"Em Definição","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Civil","d":"Estabilidade das Construcoes","s":"7, 8","t":"N","l":"B - 41","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Civil","d":"Construcao Civil","s":"7, 8","t":"N","l":"B - 22","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Civil","d":"Hidraulica e Hidrometria","s":"7, 8","t":"N","l":"B - 24","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Civil/Eng. Mecânica","d":"Algoritmos e Logica de Programacao","s":"2, 3","t":"N","l":"B - 51","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng,. Civil/Eng. Química","d":"Principios de Eletricidade e Magnetismo","s":"4, 5","t":"N","l":"B - 30","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Civil/Eng. Mecânica","d":"Fisica Geral e Experimental - Mecanica","s":"2, 4","t":"N","l":"B - 46","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Civil","d":"Mecanica e Resistencia dos Materiais","s":"2","t":"N","l":"B - 34","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica/Eng. Elétrica","d":"Calculo Diferencial e Integral III","s":"4, 6","t":"N","l":"B - 31","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng,. Civil/Eng. Química","d":"Resistencia dos Materiais","s":"5","t":"N","l":"B - 35","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Calculo Diferencial e Integral III","s":"nan","t":"N","l":"-","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Produção","d":"Termodinamica Aplicada","s":"6","t":"N","l":"B - 19","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Produção","d":"Calculo Diferencial e Integral II","s":"3","t":"N","l":"B - 30","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Produção","d":"Gerenciamento da Cadeia de Suprimentos","s":"7","t":"N","l":"B - 34","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Produção","d":"Gestao da Qualidade","s":"6","t":"N","l":"B - 41","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Produção","d":"Quimica Geral e Experimental","s":"4","t":"N","l":"B - 36","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Produção","d":"Quimica e Ciencia dos Materiais","s":"2, 3","t":"N","l":"B - 38","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Produção","d":"Engenharia de Metodos","s":"6, 7","t":"N","l":"B - 26","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Fisica Geral e Experimental - Energia","s":"nan","t":"N","l":"-","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Automacao de Processos Industriais","s":"nan","t":"N","l":"Em Definição","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Produção","d":"Pesquisa Operacional (Programação Matemática)","s":"6","t":"N","l":"B - 40","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica/Eng. Elétrica","d":"Fenomenos de Transporte","s":"6","t":"N","l":"B - 41","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Elétrica","d":"Instalacoes Eletricas","s":"8","t":"N","l":"B - 37","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Elétrica","d":"Automacao de Processos Industriais","s":"7, 8","t":"N","l":"B - 32","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica/Eng. Química","d":"Fisica Geral e Experimental - Energia","s":"3","t":"N","l":"B - 52","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica","d":"Processos de Fabricacao","s":"6","t":"N","l":"B - 32","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica","d":"Geracao e Distribuicao de Vapor","s":"8, 9","t":"N","l":"B - 49","y":"Qui","h":"21:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica","d":"Elementos de Maquinas I","s":"8, 9","t":"N","l":"B - 39","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica","d":"Maquinas de Fluxo","s":"8","t":"N","l":"B - 32","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica","d":"Geracao e Distribuicao de Vapor","s":"8","t":"N","l":"B - 30","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica","d":"Calculo Diferencial e Integral","s":"2, 3","t":"N","l":"E - 75","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Eng. Mecânica","d":"Desenho Tecnico Projetivo","s":"2, 3","t":"N","l":"B - 20","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Terapia Analitico - Comportamental","s":"8","t":"N","l":"B - 36","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Processos Psicologicos Basicos","s":"2","t":"N","l":"B - 34","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicopatologia I","s":"4, 6","t":"N","l":"E - 75","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Orientacao Profissional","s":"8, 10","t":"N","l":"B - 24","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicologia e Politicas Publicas","s":"8, 10","t":"N","l":"B - 28","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Diagnostico e Intervencao em Psicologia","s":"7","t":"N","l":"B - 28","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Terapia Comportamental","s":"8","t":"N","l":"B - 39","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Psicologia e Politicas Publicas","s":"nan","t":"N","l":"-","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Matrizes do Pensamento em Psicologia - Cognitiva Comportamental","s":"3, 5","t":"N","l":"B - 26","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Etica e Profissao","s":"8","t":"N","l":"B - 28","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Aconselhamento e Orientacao em Psicologia","s":"6, 8","t":"N","l":"B - 47","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Orientacao Profissional","s":"9","t":"N","l":"B - 20","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Matrizes do Pensamento em Psicologia - Cognitiva Comportamental","s":"5","t":"N","l":"B - 46","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Diagnostico e Intervencao em Psicologia","s":"nan","t":"N","l":"-","y":"Qua","h":"20:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Processos Psicologicos Basicos","s":"2","t":"N","l":"B - 35","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicologia Organizacional e do Trabalho II","s":"7","t":"N","l":"B - 52","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Matrizes do Pensamento em Psicologia - Fenomenologia Existencial","s":"4, 6","t":"N","l":"B - 47","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Matrizes do Pensamento em Psicologia - Psicanalise","s":"3, 5","t":"N","l":"B - 34","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Psicologia Social - Nocoes Introdutorias","s":"nan","t":"N","l":"B - 23","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Desenvolvimento Humano II","s":"3, 5","t":"N","l":"B - 39","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Diagnostico e Intervencao em Psicologia","s":"6","t":"N","l":"Em Definição","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicologia Escolar e Educacional","s":"9","t":"N","l":"Em Definição","y":"Sex","h":"21:00"},{"a":"Teórico e Práticas","c":"nan","d":"Matrizes do Pensamento em Psicologia - Psicanalise","s":"nan","t":"N","l":"-","y":"Seg","h":"20:00"},{"a":"Teórico e Práticas","c":"nan","d":"Psicopatologia I","s":"nan","t":"N","l":"-","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Desenvolvimento Humano II","s":"nan","t":"N","l":"-","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Modelos de Atuacao Clinica","s":"6, 7","t":"M","l":"B - 38","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Neuroanatomofisiologia","s":"2, 3","t":"M","l":"B - 51","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicologia Social - Avancada","s":"4, 5","t":"M","l":"B - 29","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Medidas e Avaliacao em Psicologia III","s":"6","t":"M","l":"B - 40","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicologia Social - Avancada","s":"5","t":"M","l":"B - 52","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicopatologia II","s":"6, 7","t":"M","l":"B - 46","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Orientacao Profissional","s":"8","t":"M","l":"B - 34","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicologia Organizacional e do Trabalho I","s":"4","t":"M","l":"B - 19","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Desenvolvimento Humano I","s":"2, 3","t":"M","l":"B - 35","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Psicologia, Ciencia e Profissao","s":"2","t":"M","l":"B - 20","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Terapia Comportamental","s":"8, 9","t":"M","l":"B - 47","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Aconselhamento e Orientacao em Psicologia","s":"6, 8","t":"M","l":"B - 31","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"nan","d":"Psicologia Organizacional e do Trabalho I","s":"nan","t":"M","l":"-","y":"Seg","h":"10:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Teoria Psicanalitica","s":"8, 10","t":"M","l":"B - 51","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"nan","d":"Medidas e Avaliacao em Psicologia III","s":"nan","t":"M","l":"-","y":"Seg","h":"09:00"},{"a":"Teórico e Práticas","c":"Biomedicina","d":"Citologia Clinica","s":"4, 6","t":"M","l":"B - 26","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Biomedicina","d":"Bromatologia e Toxicologia","s":"6","t":"M","l":"B - 24","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Nutrição/Biomedicina","d":"Patologia","s":"4, 6","t":"M","l":"B - 27","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Biomedicina","d":"Microbiologia e Imunologia Clinica","s":"5","t":"M","l":"B - 49","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Nutrição","d":"Educacao Alimentar e Nutricional","s":"6","t":"M","l":"B - 42","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Nutrição","d":"Terapia Nutricional Enteral e Parenteral","s":"6, 7","t":"M","l":"B - 34","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Nutrição","d":"Nutricao e Dietetica Funcional","s":"6","t":"M","l":"B - 49","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Nutrição","d":"Nutricao Materno - Infantil","s":"4, 6, 7","t":"M","l":"B - 31","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Obstetricia Veterinaria","s":"8","t":"M","l":"B - 39","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Biotecnologia da Reproducao Aplicada a Medicina Veterinaria","s":"9","t":"M","l":"B - 40","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Anestesiologia Veterinaria","s":"6, 8","t":"M","l":"B - 37","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Inspecao de Prod. Orig. Anim. e Leg. - Leite, Ovos e Mel","s":"8, 10","t":"M","l":"B - 30","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Tecnica Cirurgica em Medicina Veterinaria","s":"6","t":"M","l":"B - 52","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Zoonoses e Saude Publica","s":"4, 6, 8","t":"M","l":"B - 41","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Ornitopatologia","s":"6, 8","t":"M","l":"B - 46","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária","d":"Clinica Medica de Pequenos Animais","s":"7, 8","t":"M","l":"B - 26","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Fisioterapia/Biomedicina","d":"Farmacologia","s":"3, 4","t":"M","l":"B - 28","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Fisioterapia","d":"Fisioterapia Aquatica","s":"6, 7, 8","t":"M","l":"B - 30","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Fisioterapia","d":"Cinesiologia e Biomecanica","s":"2, 3","t":"M","l":"B - 38","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Fisioterapia","d":"Avaliacao Cinesiologica Funcional","s":"4","t":"M","l":"B - 41","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Fisioterapia","d":"Cinesioterapia","s":"4","t":"M","l":"B - 49","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Fisioterapia","d":"Protese e Ortese","s":"6, 8","t":"M","l":"B - 36","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Farmácia","d":"Cuidado Farmaceutico e Fisiopatologia Aplicada I","s":"5, 7","t":"M","l":"B - 30","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Farmácia","d":"Politicas Publicas de Saude e Assistencia Farmaceutica","s":"4, 6, 8","t":"M","l":"B - 40","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Farmácia","d":"Tecnologia Farmaceutica","s":"5","t":"M","l":"B - 46","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"Farmácia","d":"Bioquimica Aplicada a Saude","s":"4","t":"M","l":"B - 27","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Farmácia","d":"Microbiologia, Imunologia e Parasitologia","s":"3","t":"M","l":"B - 31","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Farmácia/Nutrição","d":"Farmacologia Aplicada a Saude","s":"4, 6","t":"M","l":"B - 51","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Odontologia","d":"Clínica Integrada em Odontologia III","s":"8","t":"M","l":"B - 21","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Odontologia","d":"Clinica Integrada em Odontologia I","s":"6","t":"M","l":"B - 24","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Odontologia","d":"Clínica Integrada em Odontologia III","s":"8","t":"M","l":"B - 19","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Odontologia","d":"Odontologia Legal e Etica","s":"3, 5, 6, 8","t":"M","l":"B - 20","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Odontologia","d":"Disfuncao Temporomandibular e Dor Orofacial","s":"7, 10","t":"M","l":"B - 47","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Educação Física","d":"Fisiologia do Exercicio","s":"4, 5","t":"M","l":"B - 32","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Educação Física","d":"Cinesiologia e Biomecanica","s":"5","t":"M","l":"B - 38","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Educação Física","d":"Fisiologia do Exercicio","s":"4, 5","t":"M","l":"B - 39","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Administracao e Auditoria em Saude","s":"6, 8","t":"N","l":"B - 49","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Processo de Cuidar na Saude da Mulher","s":"5","t":"N","l":"B - 52","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Enfermagem na Saude do Adulto","s":"5, 6","t":"N","l":"B - 36","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Fundamentos Semiologicos de Enfermagem","s":"4","t":"N","l":"B - 47","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Fundamentos Semiologicos de Enfermagem","s":"4","t":"N","l":"B - 47","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Enfermagem na Saude da Crianca e do Adolescente","s":"5, 6","t":"M","l":"E - 75","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Enfermagem na Saude da Crianca e do Adolescente","s":"5, 6","t":"M","l":"E - 75","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Saude Publica","s":"4, 6","t":"M","l":"B - 24","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Enfermagem e Saude do Trabalhador","s":"7, 8","t":"M","l":"B - 32","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Enfermagem","d":"Urgencia e Emergencia em Enfermagem","s":"8","t":"M","l":"B - 40","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"nan","d":"Modelos de Gestao","s":"nan","t":"N","l":"Em Definição","y":"Em Definição","h":"18:00"},{"a":"Teórico e Práticas","c":"nan","d":"Direito Processual Civil - Execucao e Cumprimento de Sentenca","s":"nan","t":"N","l":"-","y":"Seg","h":"19:00:00"},{"a":"Teórico e Práticas","c":"nan","d":"Desenho Tecnico Projetivo","s":"nan","t":"N","l":"Em Definição","y":"Em Definição","h":"18:00"},{"a":"Teórico e Práticas","c":"nan","d":"Principios de Eletricidade e Magnetismo","s":"nan","t":"N","l":"Em Definição","y":"Em Definição","h":"18:00"},{"a":"Teórico e Práticas","c":"nan","d":"Fenomenos de Transporte","s":"nan","t":"N","l":"Em Definição","y":"Em Definição","h":"18:00"},{"a":"Teórico e Práticas","c":"Psicologia","d":"Terapia Analitico - Comportamental","s":"110","t":"N","l":"E - 76","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"nan","d":"Psicologia Social - Nocoes Introdutorias","s":"nan","t":"N","l":"Em Definição","y":"Em Definição","h":"18:00"},{"a":"Teórico e Práticas","c":"CST em Logística - N","d":"Projeto Integrado I","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"CST em Logística - N","d":"Modelos de Gestao","s":"Calouros 1º Semestre","t":"N","l":"B - 40","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"CST em Logística - N","d":"Legislacao Empresarial Aplicada","s":"Calouros 1º Semestre","t":"N","l":"E - 75","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"CST em Logística - N","d":"Metodos Quantitativos","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Administração - N","d":"Legislacao Empresarial Aplicada","s":"Calouros 1º Semestre","t":"N","l":"E - 75","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Administração - N","d":"Metodos Quantitativos","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Administração - N","d":"Economia para Negocios","s":"Calouros 1º Semestre","t":"N","l":"B - 20","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito - N","d":"Direito Civil - Parte Geral","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Direito - N","d":"Direito Civil - Obrigacoes","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Direito - N","d":"Direito Civil - Contratos","s":"Calouros 1º Semestre","t":"N","l":"B - 27","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Direito - M","d":"Direito Civil - Parte Geral","s":"Calouros 1º Semestre","t":"M","l":"B - 35","y":"Sex","h":"08:00"},{"a":"Teórico e Práticas","c":"Direito - M","d":"Teoria Geral do Direito Constitucional","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Direito - M","d":"Teoria Geral do Processo","s":"Calouros 1º Semestre","t":"M","l":"B - 32","y":"Qua","h":"08:00"},{"a":"Teórico e Práticas","c":"Engenharia da Computação - N","d":"Desenho Tecnico Projetivo","s":"Calouros 1º Semestre","t":"N","l":"B - 20","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia da Computação - N","d":"Calculo Diferencial e Integral","s":"Calouros 1º Semestre","t":"N","l":"E - 75","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia da Computação - N","d":"Algoritmos e Logica de Programacao","s":"Calouros 1º Semestre","t":"N","l":"B - 51","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Civil - N","d":"Calculo Diferencial e Integral","s":"Calouros 1º Semestre","t":"N","l":"E - 75","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Civil - N","d":"Fisica Geral e Experimental - Energia","s":"Calouros 1º Semestre","t":"N","l":"B - 52","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Civil - N","d":"Fisica Geral e Experimental - Mecanica","s":"Calouros 1º Semestre","t":"N","l":"B - 46","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Elétrica - N","d":"Calculo Diferencial e Integral","s":"Calouros 1º Semestre","t":"N","l":"E - 75","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Elétrica - N","d":"Quimica e Ciencia dos Materiais","s":"Calouros 1º Semestre","t":"N","l":"B - 38","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Elétrica - N","d":"Algoritmos e Logica de Programacao","s":"Calouros 1º Semestre","t":"N","l":"B - 51","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Mecânica - N","d":"Calculo Diferencial e Integral","s":"Calouros 1º Semestre","t":"N","l":"E - 75","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Mecânica - N","d":"Quimica e Ciencia dos Materiais","s":"Calouros 1º Semestre","t":"N","l":"B - 38","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Mecânica - N","d":"Algoritmos e Logica de Programacao","s":"Calouros 1º Semestre","t":"N","l":"B - 51","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia de Produção - N","d":"Calculo Diferencial e Integral","s":"Calouros 1º Semestre","t":"N","l":"E - 75","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia de Produção - N","d":"Quimica e Ciencia dos Materiais","s":"Calouros 1º Semestre","t":"N","l":"B - 38","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia de Produção - N","d":"Algoritmos e Logica de Programacao","s":"Calouros 1º Semestre","t":"N","l":"B - 51","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia - N","d":"Desenvolvimento Humano I","s":"Calouros 1º Semestre","t":"N","l":"B - 41","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia - N","d":"Neuroanatomofisiologia","s":"Calouros 1º Semestre","t":"N","l":"B - 47","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Psicologia - M","d":"Desenvolvimento Humano I","s":"Calouros 1º Semestre","t":"M","l":"B - 35","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Psicologia - M","d":"Psicologia, Ciencia e Profissao","s":"Calouros 1º Semestre","t":"M","l":"B - 20","y":"Qui","h":"08:00"},{"a":"Teórico e Práticas","c":"CST em Análise e Desenvolvimento de Sistemas - N","d":"Projeto Integrado I","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"CST em Análise e Desenvolvimento de Sistemas - N","d":"Linguagem de Programacao","s":"Calouros 1º Semestre","t":"N","l":"B - 42","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"CST em Análise e Desenvolvimento de Sistemas - N","d":"Logica e Matematica Computacional","s":"Calouros 1º Semestre","t":"N","l":"B - 31","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"CST em Análise e Desenvolvimento de Sistemas - N","d":"Algoritmos e Programacao Estruturada","s":"Calouros 1º Semestre","t":"N","l":"B - 51","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Odontologia - M","d":"Cien. Morfofuncionais Aplicadas a Odontologia","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Odontologia - M","d":"Cien. Morfofuncionais Bucomaxilofaciais","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Odontologia - M","d":"Odontologia na Saude Coletiva","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Odontologia - M","d":"Ciencias Moleculares e Celulares","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Odontologia - N","d":"Cien. Morfofuncionais Aplicadas a Odontologia","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Odontologia - N","d":"Cien. Morfofuncionais Bucomaxilofaciais","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Odontologia - N","d":"Odontologia na Saude Coletiva","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Odontologia - N","d":"Ciencias Moleculares e Celulares","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - N","d":"Bioetica e Biosseguranca - Acoes Fundamentais para Promocao a Saude","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - N","d":"Normas, Rotinas e Tecnicas de Enfermagem","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - N","d":"Microbiologia e Parasitologia - Asp. Morfologicos, Bioquimicos e Metodologicos","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Enfermagem - N","d":"Processo de Cuidar em Enfermagem","s":"Calouros 1º Semestre","t":"N","l":"B - 47","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Enfermagem - N","d":"Cien. Morfofuncionais dos Sistemas Nervoso e Cardiorrespiratorio","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Enfermagem - N","d":"Introducao a Biologia Celular e do Desenvolvimento","s":"Calouros 1º Semestre","t":"N","l":"B - 30","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Enfermagem - M","d":"Microbiologia","s":"Calouros 1º Semestre","t":"M","l":"B - 41","y":"Seg","h":"08:00"},{"a":"Teórico e Práticas","c":"Enfermagem - M","d":"Introducao a Biologia Celular e do Desenvolvimento","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Engenharia Química - N","d":"Calculo Diferencial e Integral","s":"Calouros 1º Semestre","t":"N","l":"E - 75","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Química - N","d":"Fisica Geral e Experimental - Energia","s":"Calouros 1º Semestre","t":"N","l":"B - 52","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Engenharia Química - N","d":"Fisica Geral e Experimental - Mecanica","s":"Calouros 1º Semestre","t":"N","l":"B - 46","y":"Sex","h":"19:00"},{"a":"Teórico e Práticas","c":"Farmácia - N","d":"Quimica Geral","s":"Calouros 1º Semestre","t":"N","l":"B - 39","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Farmácia - N","d":"Cien. Morfofuncionais dos Sistemas Nervoso e Cardiorrespiratorio","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Farmácia - N","d":"Introducao a Biologia Celular e do Desenvolvimento","s":"Calouros 1º Semestre","t":"N","l":"B - 30","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária - N","d":"Bacteriologia e Imunologia Aplicadas a Medicina Veterinaria","s":"Calouros 1º Semestre","t":"N","l":"B - 40","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária - N","d":"Cien. Morfofuncionais Vet. Aplic. ao Sist. Digestorio e Glandulas Anexas","s":"Calouros 1º Semestre","t":"N","l":"B - 19","y":"Qua","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária - N","d":"Introducao a Biologia Celular e do Desenvolvimento","s":"Calouros 1º Semestre","t":"N","l":"B - 30","y":"Seg","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária - N","d":"Cien. Morfofuncionais Vet. Aplic. ao Sist. Tegumentar, Esquel. e Locomotor","s":"Calouros 1º Semestre","t":"N","l":"B - 26","y":"Qui","h":"19:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária - N","d":"Bacteriologia e Imunologia Aplicadas a Medicina Veterinaria","s":"Calouros 1º Semestre","t":"N","l":"B - 40","y":"Ter","h":"19:00"},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - N","d":"Bioetica e Biosseguranca - Acoes Fundamentais para Promocao a Saude","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - N","d":"Normas, Rotinas e Tecnicas de Enfermagem","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - N","d":"Microbiologia e Parasitologia - Asp. Morfologicos, Bioquimicos e Metodologicos","s":"Calouros 1º Semestre","t":"N","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Medicina Veterinária - M","d":"Virologia e Micologia Aplicadas a Medicina Veterinaria","s":"Calouros 1º Semestre","t":"M","l":"B - 39","y":"Ter","h":"08:00"},{"a":"Teórico e Práticas","c":"Medicina Veterinária - M","d":"Introducao a Biologia Celular e do Desenvolvimento","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - M                                                                    ","d":"Bioetica e Biosseguranca - Acoes Fundamentais para Promocao a Saude","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - M                                                                    ","d":"Normas, Rotinas e Tecnicas de Enfermagem","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Teórico e Práticas","c":"Técnico em Enfermagem - M                                                                    ","d":"Microbiologia e Parasitologia - Asp. Morfologicos, Bioquimicos e Metodologicos","s":"Calouros 1º Semestre","t":"M","l":"","y":"","h":""},{"a":"Estágios","c":"Técnico em Enfermagem - N","d":"Estagio Supervisionado a Pacientes Graves e Gestao em Enfermagem","s":"","t":"N","l":"unidade hospitalar - HU","y":"","h":""},{"a":"Estágios","c":"CST em Logística - N","d":"Projeto Integrado I","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"CST em Logística - N","d":"Projeto Integrado II","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"CST em Logística - N","d":"Projeto de Extensao I - Logistica","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"CST em Logística - N","d":"Projeto de Extensao II - Logistica","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Administração - N","d":"Projeto de Extensao I - Administracao","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Administração - N","d":"Estagio Curricular em Administracao I","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Administração - N","d":"Estagio Curricular em Administracao II","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Administração - N","d":"Estagio Curricular em Administracao III","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Direito - N","d":"Projeto de Extensao I - Direito","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Direito - N","d":"Estágio Curricular em Direito I - Simulado","s":"","t":"N","l":"NPJ","y":"Seg","h":""},{"a":"Estágios","c":"Direito - N","d":"Estagio Curricular em Direito II - Simulado","s":"","t":"N","l":"NPJ","y":"Ter","h":""},{"a":"Estágios","c":"Direito - N","d":"Estagio Curricular em Direito III - Real","s":"","t":"N","l":"NPJ","y":"Qui","h":""},{"a":"Estágios","c":"Direito - N","d":"Estagio Curricular em Direito IV - Real","s":"","t":"N","l":"NPJ","y":"Ter","h":""},{"a":"Estágios","c":"Direito - M","d":"Projeto de Extensao I - Direito","s":"","t":"M","l":"","y":"","h":""},{"a":"Estágios","c":"Direito - M","d":"Estágio Curricular em Direito I - Simulado","s":"","t":"M","l":"NPJ","y":"Qui","h":""},{"a":"Estágios","c":"Direito - M","d":"Estagio Curricular em Direito II - Simulado","s":"","t":"M","l":"NPJ","y":"Ter","h":""},{"a":"Estágios","c":"Direito - M","d":"Estagio Curricular em Direito III - Real","s":"","t":"M","l":"NPJ","y":"Seg","h":""},{"a":"Estágios","c":"Engenharia da Computação - N","d":"Projeto de Extensao I - Engenharia da Computacao","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Engenharia Civil - N","d":"Projeto de Extensao I - Engenharia Civil","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Engenharia Civil - N","d":"Estagio Curricular em Engenharia Civil","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Engenharia Elétrica - N","d":"Projeto de Extensao I - Engenharia Eletrica","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Engenharia Mecânica - N","d":"Projeto de Extensao I - Engenharia Mecanica","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Engenharia de Produção - N","d":"Projeto de Extensao I - Engenharia de Producao","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - N","d":"Estagio Basico I","s":"","t":"N","l":"SPA","y":"Sex","h":""},{"a":"Estágios","c":"Psicologia - N","d":"Estagio Especifico I - A","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - N","d":"Estagio Especifico I - B","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - N","d":"Estagio Especifico I - C","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - N","d":"Estagio Especifico III - A","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - N","d":"Estagio Especifico III - B","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - N","d":"Estagio Especifico III - C","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - N","d":"Projeto de Extensao I - Psicologia","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - M","d":"Estagio Basico I","s":"","t":"M","l":"SPA","y":"Sex","h":""},{"a":"Estágios","c":"Psicologia - M","d":"Estagio Basico II","s":"","t":"M","l":"SPA","y":"Qui","h":""},{"a":"Estágios","c":"Psicologia - M","d":"Estagio Especifico I - A","s":"","t":"M","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - M","d":"Estagio Especifico II - A","s":"","t":"M","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - M","d":"Estagio Especifico II - B","s":"","t":"M","l":"","y":"","h":""},{"a":"Estágios","c":"Psicologia - M","d":"Projeto de Extensao I - Psicologia","s":"","t":"M","l":"","y":"","h":""},{"a":"Estágios","c":"CST em Análise e Desenvolvimento de Sistemas - N","d":"Projeto de Extensao I - Analise e Desenvolvimento de Sistemas","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Odontologia - M","d":"Estagio Clinico em Odontopediatria e Ortodontia Preventiva","s":"","t":"M","l":"Clinica de Odontologia","y":"Ter","h":""},{"a":"Estágios","c":"Odontologia - M","d":"Projeto de Extensao I - Odontologia","s":"","t":"M","l":"","y":"","h":""},{"a":"Estágios","c":"Odontologia - N","d":"Projeto de Extensao I - Odontologia","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Enfermagem - N","d":"Estagio Curricular Supervisionado em Saude Publica","s":"","t":"N","l":"Unidade Basica de Saúde","y":"","h":""},{"a":"Estágios","c":"Enfermagem - N","d":"Estagio Curricular Supervisionado Hospitalar","s":"","t":"N","l":"unidade hospitalar - HU","y":"","h":""},{"a":"Estágios","c":"Enfermagem - N","d":"Projeto de Extensao I - Enfermagem","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Enfermagem - M","d":"Estagio Curricular Supervisionado Hospitalar","s":"","t":"M","l":"unidade hospitalar - HU","y":"","h":""},{"a":"Estágios","c":"Enfermagem - M","d":"Projeto de Extensao I - Enfermagem","s":"","t":"M","l":"","y":"","h":""},{"a":"Estágios","c":"Engenharia Química - N","d":"Projeto de Extensao I - Engenharia Quimica","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Farmácia - N","d":"Estagio Curricular em Atencao Farmaceutica","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Farmácia - N","d":"Estagio Curricular em Manipulacao Alopatica e Homeopatica","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Farmácia - N","d":"Projeto de Extensao I - Farmacia","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Medicina Veterinária - N","d":"Estagio Curricular em Medicina Veterinaria","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Medicina Veterinária - N","d":"Projeto de Extensao I - Medicina Veterinaria","s":"","t":"N","l":"","y":"","h":""},{"a":"Estágios","c":"Medicina Veterinária - M","d":"Projeto de Extensao I - Medicina Veterinaria","s":"","t":"M","l":"","y":"","h":""}];
+
+        const searchInput = document.getElementById('searchInput');
+        const dayFilter = document.getElementById('dayFilter');
+        const tableBody = document.getElementById('tableBody');
+        const resultCount = document.getElementById('resultCount');
+        const emptyState = document.getElementById('emptyState');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+        function renderRoom(room) {
+            if (!room || room === 'nan' || room === 'Em Definição' || room === '-') return `<span class="text-gray-400 italic">A definir</span>`;
+            const isLab = room.toLowerCase().includes('lab') || room.toLowerCase().includes('unidade') || room.toLowerCase().includes('infor') || room.toLowerCase().includes('clínica') || room.toLowerCase().includes('clinica') || room.toLowerCase().includes('npj') || room.toLowerCase().includes('spa');
+            const bgClass = isLab ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-orange-50 text-orange-800 border-orange-200';
+            return `<div class="inline-flex items-center px-2.5 py-1 rounded-md border ${bgClass}"><span class="font-bold">${room}</span></div>`;
+        }
+
+        function renderTable(data) {
+            tableBody.innerHTML = '';
+            if (data.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.className = "hover:bg-gray-50 transition-colors group";
+                    row.innerHTML = `
+                        <td class="py-2 px-4 border-b border-gray-100 font-medium text-xs text-gray-500 whitespace-nowrap">${item.a}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 font-medium text-gray-900 text-sm">${item.c}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 text-sm text-gray-700">${item.d}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 text-sm text-gray-600">${item.s !== 'nan' ? item.s : '-'}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 text-sm font-bold text-gray-600">${item.t !== 'nan' ? item.t : '-'}</td>
+                        <td class="py-2 px-4 border-b border-gray-100 whitespace-nowrap">${renderRoom(item.l)}</td>
+                        <td class="py-2 px-4 border-b border-gray-100"><span class="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded capitalize">${item.y !== 'nan' ? item.y : '-'}</span></td>
+                        <td class="py-2 px-4 border-b border-gray-100 text-sm text-gray-600 whitespace-nowrap">${item.h !== 'nan' ? item.h : '-'}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }
+            resultCount.textContent = `${data.length} sala(s) encontrada(s)`;
+            if (searchInput.value || dayFilter.value) clearFiltersBtn.classList.remove('hidden');
+            else clearFiltersBtn.classList.add('hidden');
+        }
+
+        function filterData() {
+            const searchTerm = searchInput.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const selectedDay = dayFilter.value.toLowerCase();
+            const filteredData = scheduleData.filter(item => {
+                const cursoNormal = (item.c || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const discNormal = (item.d || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const salaNormal = (item.l || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const abaNormal = (item.a || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                
+                const matchesSearch = searchTerm === '' || cursoNormal.includes(searchTerm) || discNormal.includes(searchTerm) || salaNormal.includes(searchTerm) || abaNormal.includes(searchTerm) || `sala ${salaNormal}`.includes(searchTerm);
+                const itemDay = (item.y || "").toLowerCase();
+                const matchesDay = selectedDay === '' || itemDay.includes(selectedDay);
+                return matchesSearch && matchesDay;
+            });
+            renderTable(filteredData);
+        }
+
+        searchInput.addEventListener('input', filterData);
+        dayFilter.addEventListener('change', filterData);
+        clearFiltersBtn.addEventListener('click', () => { searchInput.value = ''; dayFilter.value = ''; filterData(); });
+
+        function setDefaultDay() {
+            const today = new Date().getDay();
+            const daysMap = { 1: "seg", 2: "ter", 3: "qua", 4: "qui", 5: "sex" };
+            if (daysMap[today] && document.querySelector(`#dayFilter option[value="${daysMap[today].charAt(0).toUpperCase() + daysMap[today].slice(1)}"]`)) {
+                dayFilter.value = daysMap[today].charAt(0).toUpperCase() + daysMap[today].slice(1);
+            }
+        }
+
+        setDefaultDay(); filterData();
+    </script>
+</body>
+</html>
+
+```
