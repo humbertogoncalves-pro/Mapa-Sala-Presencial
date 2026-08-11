@@ -1028,8 +1028,8 @@
       .hero { padding: 46px 44px; }
       .hero-description { font-size: 1.04rem; }
       .finder { margin-top: 22px; padding: 22px; }
-      .filters-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      .filters-grid.semester-hidden { grid-template-columns: 1.35fr 1fr 1fr; }
+      .filters-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .filters-grid.semester-hidden { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .results-toolbar { margin-top: 34px; }
       .cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     }
@@ -1116,7 +1116,6 @@
         <div class="scope-tabs" role="tablist" aria-label="Perfil do aluno">
           <button class="scope-tab" type="button" role="tab" data-scope="all" aria-selected="true">Todas</button>
           <button class="scope-tab" type="button" role="tab" data-scope="freshman" aria-selected="false">Calouros</button>
-          <button class="scope-tab" type="button" role="tab" data-scope="veteran" aria-selected="false">Veteranos</button>
           <button class="scope-tab" type="button" role="tab" data-scope="special" aria-selected="false">Estágio, TCC e PI</button>
         </div>
       </div>
@@ -1126,14 +1125,20 @@
         <span>Filtros combináveis</span>
       </div>
 
-      <div class="filters-grid semester-hidden" id="filtersGrid">
+      <div class="filters-grid" id="filtersGrid">
         <div class="filter-field">
           <label for="courseFilter">Curso</label>
           <div class="select-wrap">
             <select class="filter-select" id="courseFilter"><option value="">Todos os cursos</option></select>
           </div>
         </div>
-        <div class="filter-field" id="semesterField" hidden>
+        <div class="filter-field">
+          <label for="disciplineFilter">Disciplina</label>
+          <div class="select-wrap">
+            <select class="filter-select" id="disciplineFilter"><option value="">Todas as disciplinas</option></select>
+          </div>
+        </div>
+        <div class="filter-field" id="semesterField">
           <label for="semesterFilter">Semestre</label>
           <div class="select-wrap">
             <select class="filter-select" id="semesterFilter"><option value="">Todos os semestres</option></select>
@@ -1223,14 +1228,15 @@
     });
     const collator = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
     const FAVORITE_STORAGE_KEY = "mapaSalaPresencial.favoriteFilters.v1";
-    const STRUCTURED_FILTER_KEYS = Object.freeze(["scope", "course", "semester", "day", "shift"]);
-    const FILTER_DEFAULTS = Object.freeze({ scope: "all", course: "", semester: "", day: "", shift: "" });
+    const STRUCTURED_FILTER_KEYS = Object.freeze(["scope", "course", "discipline", "semester", "day", "shift"]);
+    const FILTER_DEFAULTS = Object.freeze({ scope: "all", course: "", discipline: "", semester: "", day: "", shift: "" });
     let savedFavorite = null;
 
     const state = {
       scope: "all",
       query: "",
       course: "",
+      discipline: "",
       semester: "",
       day: "",
       shift: ""
@@ -1242,6 +1248,7 @@
       clearSearch: document.getElementById("clearSearch"),
       filtersGrid: document.getElementById("filtersGrid"),
       course: document.getElementById("courseFilter"),
+      discipline: document.getElementById("disciplineFilter"),
       semester: document.getElementById("semesterFilter"),
       semesterField: document.getElementById("semesterField"),
       dayFilter: document.getElementById("dayFilter"),
@@ -1389,6 +1396,7 @@
     function entryMatchesStructuredFilters(entry, omittedKey = "") {
       if (omittedKey !== "scope" && !scopeMatches(entry)) return false;
       if (omittedKey !== "course" && state.course && !entry.courseAliases.includes(state.course)) return false;
+      if (omittedKey !== "discipline" && state.discipline && entry.subject !== state.discipline) return false;
       if (omittedKey !== "semester" && state.semester && !entry.semesters.includes(Number(state.semester))) return false;
       if (omittedKey !== "day" && state.day && entry.dayKey !== state.day) return false;
       if (omittedKey !== "shift" && state.shift && entry.shift !== state.shift) return false;
@@ -1398,6 +1406,7 @@
     function availableValuesFor(filterKey) {
       const candidates = entries.filter((entry) => entryMatchesStructuredFilters(entry, filterKey));
       if (filterKey === "course") return new Set(candidates.flatMap((entry) => entry.courseAliases));
+      if (filterKey === "discipline") return new Set(candidates.map((entry) => entry.subject));
       if (filterKey === "semester") return new Set(candidates.flatMap((entry) => entry.semesters).filter((value) => value >= 2 && value <= 10));
       if (filterKey === "day") return new Set(candidates.map((entry) => entry.dayKey));
       if (filterKey === "shift") return new Set(candidates.map((entry) => entry.shift));
@@ -1410,7 +1419,7 @@
         ...(preferredKey && preferredKey !== "scope" ? [preferredKey] : [])
       ];
 
-      if (state.scope !== "veteran") state.semester = "";
+      if (!["all", "veteran"].includes(state.scope)) state.semester = "";
 
       for (let pass = 0; pass < validationOrder.length; pass += 1) {
         let changed = false;
@@ -1458,7 +1467,10 @@
       const courses = [...availableValuesFor("course")].sort(collator.compare);
       replaceSelectOptions(elements.course, "Todos os cursos", courses, state.course);
 
-      const showSemester = state.scope === "veteran";
+      const disciplines = [...availableValuesFor("discipline")].sort(collator.compare);
+      replaceSelectOptions(elements.discipline, "Todas as disciplinas", disciplines, state.discipline);
+
+      const showSemester = ["all", "veteran"].includes(state.scope);
       elements.semesterField.hidden = !showSemester;
       elements.filtersGrid.classList.toggle("semester-hidden", !showSemester);
       const semesters = [...availableValuesFor("semester")].sort((a, b) => a - b);
@@ -1489,6 +1501,7 @@
       return {
         scope: state.scope,
         course: state.course,
+        discipline: state.discipline,
         semester: state.semester,
         day: state.day,
         shift: state.shift
@@ -1496,7 +1509,7 @@
     }
 
     function hasStructuredSelection(filters = currentStructuredFilters()) {
-      return filters.scope !== "all" || Boolean(filters.course || filters.semester || filters.day || filters.shift);
+      return filters.scope !== "all" || Boolean(filters.course || filters.discipline || filters.semester || filters.day || filters.shift);
     }
 
     function sameStructuredFilters(first, second) {
@@ -1509,6 +1522,7 @@
       if (filters.scope === "veteran") parts.push("Veteranos");
       if (filters.scope === "special") parts.push("Estágio, TCC e PI");
       if (filters.course) parts.push(filters.course);
+      if (filters.discipline) parts.push(filters.discipline);
       if (filters.semester) parts.push(`${filters.semester}º semestre`);
       if (filters.day) parts.push(DAY_DEFINITIONS[filters.day]?.label || filters.day);
       if (filters.shift) parts.push(filters.shift);
@@ -1526,6 +1540,7 @@
         savedFavorite = {
           scope: parsed.scope,
           course: parsed.course,
+          discipline: typeof parsed.discipline === "string" ? parsed.discipline : "",
           semester: typeof parsed.semester === "string" ? parsed.semester : "",
           day: parsed.day,
           shift: parsed.shift
@@ -1575,12 +1590,13 @@
     }
 
     function hasActiveFilters() {
-      return state.scope !== "all" || Boolean(state.query || state.course || state.semester || state.day || state.shift);
+      return state.scope !== "all" || Boolean(state.query || state.course || state.discipline || state.semester || state.day || state.shift);
     }
 
     function entryMatches(entry) {
       if (!scopeMatches(entry)) return false;
       if (state.course && !entry.courseAliases.includes(state.course)) return false;
+      if (state.discipline && entry.subject !== state.discipline) return false;
       if (state.semester && !entry.semesters.includes(Number(state.semester))) return false;
       if (state.day && entry.dayKey !== state.day) return false;
       if (state.shift && entry.shift !== state.shift) return false;
@@ -1729,6 +1745,7 @@
       });
 
       elements.course.addEventListener("change", (event) => setStructuredFilter("course", event.target.value));
+      elements.discipline.addEventListener("change", (event) => setStructuredFilter("discipline", event.target.value));
       elements.semester.addEventListener("change", (event) => setStructuredFilter("semester", event.target.value));
       elements.dayFilter.addEventListener("click", (event) => {
         const button = event.target.closest("[data-day]");
